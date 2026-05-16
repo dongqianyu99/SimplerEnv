@@ -53,6 +53,19 @@ if __name__ == "__main__":
                 init_rng=args.octo_init_rng,
                 action_scale=args.action_scale,
             )
+    elif args.policy_model == "stair":
+        if args.ckpt_path is None or args.ckpt_path == "None":
+            raise ValueError("STAIR evaluation requires --ckpt-path to point to a stage-2 checkpoint")
+        from stair.deploy.stair_policy_loader import build_stair_simpler_policy
+
+        model = build_stair_simpler_policy(
+            saved_model_path=args.ckpt_path,
+            policy_setup=args.policy_setup,
+            action_scale=args.action_scale,
+            action_model_type=args.action_model_type,
+            num_inference_steps=args.num_inference_steps,
+            unnorm_key=args.unnorm_key,
+        )
     else:
         raise NotImplementedError()
 
