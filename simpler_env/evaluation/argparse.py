@@ -47,6 +47,7 @@ def get_args():
     parser.add_argument("--action-model-type", type=str, default="DiT-B")
     parser.add_argument("--num-inference-steps", type=int, default=10)
     parser.add_argument("--unnorm-key", type=str, default=None)
+    parser.add_argument("--base-vlm", type=str, default=None)
 
     parser.add_argument("--control-freq", type=int, default=3)
     parser.add_argument("--sim-freq", type=int, default=513)

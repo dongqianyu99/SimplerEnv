@@ -69,6 +69,7 @@ if __name__ == "__main__":
             action_model_type=args.action_model_type,
             num_inference_steps=args.num_inference_steps,
             unnorm_key=args.unnorm_key,
+            base_vlm=args.base_vlm,
         )
     else:
         raise NotImplementedError()
