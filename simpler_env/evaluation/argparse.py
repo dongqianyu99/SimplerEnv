@@ -116,7 +116,7 @@ def get_args():
     )
     parser.add_argument("--logging-dir", type=str, default="./results")
     parser.add_argument("--task-name", type=str, default=None)
-    parser.add_argument("--num-attempts", type=int, default=1)
+    parser.add_argument("--num-trials", type=int, default=1)
     parser.add_argument("--randomize-obj-init", action="store_true")
     parser.add_argument("--rng-seed", type=int, default=None)
     parser.add_argument("--save-video", action=argparse.BooleanOptionalAction, default=True)

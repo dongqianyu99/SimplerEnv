@@ -231,7 +231,7 @@ def maniskill2_evaluator(model, args):
                         y_range=(float(args.obj_init_y_range[0]), float(args.obj_init_y_range[1])),
                         x_values=tuple(float(x) for x in args.obj_init_xs),
                         y_values=tuple(float(y) for y in args.obj_init_ys),
-                        num_attempts=args.num_attempts,
+                        num_trials=args.num_trials,
                         randomize=args.randomize_obj_init,
                         rng_seed=args.rng_seed,
                     )
@@ -261,7 +261,7 @@ def maniskill2_evaluator(model, args):
                     episode_selections = create_episode_selections(
                         episode_start=args.obj_episode_range[0],
                         episode_end=args.obj_episode_range[1],
-                        num_attempts=args.num_attempts,
+                        num_trials=args.num_trials,
                     )
                     for selection in episode_selections:
                         success, video_path, action_path = run_maniskill2_eval_single_episode(
@@ -295,7 +295,7 @@ def maniskill2_evaluator(model, args):
         policy_model=args.policy_model,
         ckpt_path=args.ckpt_path,
         obj_variation_mode=args.obj_variation_mode,
-        num_attempts=args.num_attempts,
+        num_trials_requested=args.num_trials,
         randomize_obj_init=args.randomize_obj_init,
         save_video=args.save_video,
         trials=tuple(trial_results),
