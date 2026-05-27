@@ -3,8 +3,16 @@ Evaluate a model on ManiSkill2 environment.
 """
 
 import os
+from pathlib import Path
 
 import numpy as np
+from stair.utils.simpler_results import (
+    TrialResult,
+    build_summary,
+    create_episode_selections,
+    create_xy_selections,
+    write_summary,
+)
 from transforms3d.euler import quat2euler
 
 from simpler_env.utils.env.env_builder import build_maniskill2_env, get_robot_control_mode
@@ -35,6 +43,8 @@ def run_maniskill2_eval_single_episode(
     enable_raytracing=False,
     additional_env_save_tags=None,
     logging_dir="./results",
+    attempt_index=0,
+    save_video=True,
 ):
 
     if additional_env_build_kwargs is None:
@@ -152,6 +162,8 @@ def run_maniskill2_eval_single_episode(
         video_name = f"{success}_obj_episode_{obj_episode_id}"
     for k, v in episode_stats.items():
         video_name = video_name + f"_{k}_{v}"
+    if attempt_index > 0:
+        video_name = video_name + f"_attempt_{attempt_index}"
     video_name = video_name + ".mp4"
     if rgb_overlay_path is not None:
         rgb_overlay_path_str = os.path.splitext(os.path.basename(rgb_overlay_path))[0]
@@ -160,21 +172,33 @@ def run_maniskill2_eval_single_episode(
     r, p, y = quat2euler(robot_init_quat)
     video_path = f"{ckpt_path_basename}/{scene_name}/{control_mode}/{env_save_name}/rob_{robot_init_x}_{robot_init_y}_rot_{r:.3f}_{p:.3f}_{y:.3f}_rgb_overlay_{rgb_overlay_path_str}/{video_name}"
     video_path = os.path.join(logging_dir, video_path)
-    write_video(video_path, images, fps=5)
 
     # save action trajectory
     action_path = video_path.replace(".mp4", ".png")
     action_root = os.path.dirname(action_path) + "/actions/"
-    os.makedirs(action_root, exist_ok=True)
     action_path = action_root + os.path.basename(action_path)
-    model.visualize_epoch(predicted_actions, images, save_path=action_path)
+    if save_video:
+        write_video(video_path, images, fps=5)
+        os.makedirs(action_root, exist_ok=True)
+        model.visualize_epoch(predicted_actions, images, save_path=action_path)
+    else:
+        video_path = None
+        action_path = None
 
-    return success == "success"
+    return success == "success", video_path, action_path
 
 
 def maniskill2_evaluator(model, args):
     control_mode = get_robot_control_mode(args.robot, args.policy_model)
     success_arr = []
+    trial_results = []
+    trial_index = 0
+
+    if args.randomize_obj_init and args.obj_variation_mode != "xy":
+        raise ValueError(
+            "randomize_obj_init is only supported when obj_variation_mode='xy'; "
+            f"got obj_variation_mode={args.obj_variation_mode!r}"
+        )
 
     # run inference
     for robot_init_x in args.robot_init_xs:
@@ -199,21 +223,84 @@ def maniskill2_evaluator(model, args):
                     additional_env_save_tags=args.additional_env_save_tags,
                     obs_camera_name=args.obs_camera_name,
                     logging_dir=args.logging_dir,
+                    save_video=args.save_video,
                 )
                 if args.obj_variation_mode == "xy":
-                    for obj_init_x in args.obj_init_xs:
-                        for obj_init_y in args.obj_init_ys:
-                            success_arr.append(
-                                run_maniskill2_eval_single_episode(
-                                    obj_init_x=obj_init_x,
-                                    obj_init_y=obj_init_y,
-                                    **kwargs,
-                                )
+                    xy_selections = create_xy_selections(
+                        x_range=(float(args.obj_init_x_range[0]), float(args.obj_init_x_range[1])),
+                        y_range=(float(args.obj_init_y_range[0]), float(args.obj_init_y_range[1])),
+                        x_values=tuple(float(x) for x in args.obj_init_xs),
+                        y_values=tuple(float(y) for y in args.obj_init_ys),
+                        num_attempts=args.num_attempts,
+                        randomize=args.randomize_obj_init,
+                        rng_seed=args.rng_seed,
+                    )
+                    for selection in xy_selections:
+                        success, video_path, action_path = run_maniskill2_eval_single_episode(
+                            obj_init_x=selection.obj_init_x,
+                            obj_init_y=selection.obj_init_y,
+                            attempt_index=selection.attempt_index,
+                            **kwargs,
+                        )
+                        success_arr.append(success)
+                        trial_results.append(
+                            TrialResult(
+                                trial_index=trial_index,
+                                attempt_index=selection.attempt_index,
+                                success=success,
+                                obj_variation_mode=args.obj_variation_mode,
+                                obj_init_x=selection.obj_init_x,
+                                obj_init_y=selection.obj_init_y,
+                                obj_episode_id=None,
+                                video_path=video_path,
+                                action_path=action_path,
                             )
+                        )
+                        trial_index += 1
                 elif args.obj_variation_mode == "episode":
-                    for obj_episode_id in range(args.obj_episode_range[0], args.obj_episode_range[1]):
-                        success_arr.append(run_maniskill2_eval_single_episode(obj_episode_id=obj_episode_id, **kwargs))
+                    episode_selections = create_episode_selections(
+                        episode_start=args.obj_episode_range[0],
+                        episode_end=args.obj_episode_range[1],
+                        num_attempts=args.num_attempts,
+                    )
+                    for selection in episode_selections:
+                        success, video_path, action_path = run_maniskill2_eval_single_episode(
+                            obj_episode_id=selection.obj_episode_id,
+                            attempt_index=selection.attempt_index,
+                            **kwargs,
+                        )
+                        success_arr.append(success)
+                        trial_results.append(
+                            TrialResult(
+                                trial_index=trial_index,
+                                attempt_index=selection.attempt_index,
+                                success=success,
+                                obj_variation_mode=args.obj_variation_mode,
+                                obj_init_x=None,
+                                obj_init_y=None,
+                                obj_episode_id=selection.obj_episode_id,
+                                video_path=video_path,
+                                action_path=action_path,
+                            )
+                        )
+                        trial_index += 1
                 else:
                     raise NotImplementedError()
+
+    task_name = args.task_name if args.task_name is not None else args.env_name
+    summary_path = Path(args.summary_path) if args.summary_path is not None else Path(args.logging_dir) / "evaluation_summary.json"
+    summary = build_summary(
+        task_name=task_name,
+        env_name=args.env_name,
+        policy_model=args.policy_model,
+        ckpt_path=args.ckpt_path,
+        obj_variation_mode=args.obj_variation_mode,
+        num_attempts=args.num_attempts,
+        randomize_obj_init=args.randomize_obj_init,
+        save_video=args.save_video,
+        trials=tuple(trial_results),
+    )
+    write_summary(summary_path=summary_path, summary=summary)
+    print(f"Saved evaluation summary to {summary_path}")
 
     return success_arr

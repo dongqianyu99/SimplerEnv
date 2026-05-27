@@ -115,6 +115,12 @@ def get_args():
         "is allowed.",
     )
     parser.add_argument("--logging-dir", type=str, default="./results")
+    parser.add_argument("--task-name", type=str, default=None)
+    parser.add_argument("--num-attempts", type=int, default=1)
+    parser.add_argument("--randomize-obj-init", action="store_true")
+    parser.add_argument("--rng-seed", type=int, default=None)
+    parser.add_argument("--save-video", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--summary-path", type=str, default=None)
     parser.add_argument("--tf-memory-limit", type=int, default=3072, help="Tensorflow memory limit")
     parser.add_argument("--octo-init-rng", type=int, default=0, help="Octo init rng seed")
 
